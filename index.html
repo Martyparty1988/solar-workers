@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1e293b">
+    <title>Solar Work Count Lithuania by Marty Party</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    
+    <!-- PDF.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    
+    <!-- External Stylesheets -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Loader -->
+    <div id="loader" class="loader">
+        <div class="loader-spinner"></div>
+    </div>
+
+    <!-- Header -->
+    <div class="header">
+        <h1>Solar Work Count Lithuania</h1>
+        <div style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px;">by Marty Party</div>
+    </div>
+
+    <!-- Pages Container -->
+    <div class="pages-container">
+        <!-- PAGE 1: PLÁN -->
+        <div id="page-plan" class="page active">
+            <div class="card mb-16">
+                <div class="form-group">
+                    <label class="form-label">Vyberte Projekt</label>
+                    <select id="projectSelect" class="form-control">
+                        <option value="">-- Vyberte projekt --</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="canvasWrapper" style="display: none;">
+                <div class="flex-between mb-16">
+                    <div style="font-size: 14px; color: var(--color-text-secondary);">
+                        Ťukněte na plán pro přidání hotového stolu
+                    </div>
+                    <button id="resetZoom" class="btn btn-secondary" style="padding: 8px 16px; font-size: 14px;">Reset Zoom</button>
+                </div>
+                <div class="canvas-container glass" id="canvasContainer">
+                    <canvas id="pdfCanvas"></canvas>
+                </div>
+                
+                <!-- Pins overlay -->
+                <div id="pinsOverlay" style="position: absolute; top: 0; left: 0; pointer-events: none;"></div>
+            </div>
+
+            <div id="noPlanMessage" class="empty-state">
+                <div class="empty-state-icon">📋</div>
+                <div>Nejprve vyberte projekt s nahraným PDF plánem</div>
+                <button onclick="navigateTo('settings')" class="btn btn-primary mt-16">Přidat Projekt</button>
+            </div>
+        </div>
+
+        <!-- PAGE 2: ZÁZNAMY -->
+        <div id="page-records" class="page">
+            <div class="card mb-24">
+                <h2 class="mb-16" style="font-size: 18px;">Časovač Směny</h2>
+                <div class="form-group">
+                    <label class="form-label">Pracovník</label>
+                    <select id="timerWorker" class="form-control">
+                        <option value="">-- Vyberte pracovníka --</option>
+                    </select>
+                </div>
+                <div class="timer-display" id="timerDisplay">00:00:00</div>
+                <div class="flex gap-8">
+                    <button id="startShift" class="btn btn-success w-full">Začít Směnu</button>
+                    <button id="stopShift" class="btn btn-danger w-full" style="display: none;">Ukončit Směnu</button>
+                </div>
+            </div>
+
+            <div class="flex-between mb-16">
+                <h2 style="font-size: 18px;">Všechny Záznamy</h2>
+                <select id="recordsFilter" class="form-control" style="width: auto; padding: 8px 32px 8px 12px;">
+                    <option value="all">Vše</option>
+                    <option value="task">Stoly</option>
+                    <option value="hourly">Hodiny</option>
+                </select>
+            </div>
+
+            <div id="recordsList"></div>
+        </div>
+
+        <!-- PAGE 3: STATISTIKY -->
+        <div id="page-statistics" class="page">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="statTotalEarnings">€0</div>
+                    <div class="stat-label">Celkové Výdělky</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statTotalHours">0h</div>
+                    <div class="stat-label">Celkové Hodiny</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statTotalTables">0</div>
+                    <div class="stat-label">Celkem Stolů</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statAvgReward">€0</div>
+                    <div class="stat-label">Průměr/Stůl</div>
+                </div>
+            </div>
+
+            <div class="card mb-16">
+                <h3 class="mb-16" style="font-size: 16px;">Filtry</h3>
+                <div class="form-group">
+                    <label class="form-label">Pracovník</label>
+                    <select id="statsWorkerFilter" class="form-control">
+                        <option value="">Všichni pracovníci</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Projekt</label>
+                    <select id="statsProjectFilter" class="form-control">
+                        <option value="">Všechny projekty</option>
+                    </select>
+                </div>
+            </div>
+
+            <h3 class="mb-16" style="font-size: 16px;">Detaily podle Pracovníků</h3>
+            <div id="workerDetails"></div>
+        </div>
+
+        <!-- PAGE 4: NASTAVENÍ -->
+        <div id="page-settings" class="page">
+            <div class="card mb-24">
+                <h2 class="mb-16" style="font-size: 18px;">Správa Projektů</h2>
+                <button onclick="openProjectModal()" class="btn btn-primary w-full mb-16">Přidat Nový Projekt</button>
+                <div id="projectsList"></div>
+            </div>
+
+            <div class="card mb-24">
+                <h2 class="mb-16" style="font-size: 18px;">Správa Pracovníků</h2>
+                <button onclick="openWorkerModal()" class="btn btn-primary w-full mb-16">Přidat Nového Pracovníka</button>
+                <div id="workersList"></div>
+            </div>
+
+            <div class="card">
+                <h2 class="mb-16" style="font-size: 18px;">Denní Report</h2>
+                <div class="form-group">
+                    <label class="form-label">Datum</label>
+                    <input type="date" id="reportDate" class="form-control">
+                </div>
+                <button onclick="generateDailyReport()" class="btn btn-primary w-full">Generovat Denní Report</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <div class="nav-item active" onclick="navigateTo('plan')" data-page="plan">
+            <div class="nav-icon">📋</div>
+            <div class="nav-label">Plán</div>
+        </div>
+        <div class="nav-item" onclick="navigateTo('records')" data-page="records">
+            <div class="nav-icon">📝</div>
+            <div class="nav-label">Záznamy</div>
+        </div>
+        <div class="nav-item" onclick="navigateTo('statistics')" data-page="statistics">
+            <div class="nav-icon">📊</div>
+            <div class="nav-label">Statistiky</div>
+        </div>
+        <div class="nav-item" onclick="navigateTo('settings')" data-page="settings">
+            <div class="nav-icon">⚙️</div>
+            <div class="nav-label">Nastavení</div>
+        </div>
+    </nav>
+
+    <!-- Modals -->
+    <!-- Modal: Add/Edit Project -->
+    <div id="projectModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="projectModalTitle">Přidat Nový Projekt</h3>
+                <button class="modal-close" onclick="closeModal('projectModal')">&times;</button>
+            </div>
+            <form id="projectForm" onsubmit="saveProject(event)">
+                <input type="hidden" id="projectId">
+                <div class="form-group">
+                    <label class="form-label">Jméno Projektu</label>
+                    <input type="text" id="projectName" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Plán PDF</label>
+                    <input type="file" id="projectPDF" class="form-control" accept="application/pdf">
+                    <div id="currentPDF" style="font-size: 12px; color: var(--color-text-secondary); margin-top: 8px;"></div>
+                </div>
+                <div class="flex gap-8">
+                    <button type="button" onclick="closeModal('projectModal')" class="btn btn-secondary w-full">Zrušit</button>
+                    <button type="submit" class="btn btn-primary w-full">Uložit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Add/Edit Worker -->
+    <div id="workerModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="workerModalTitle">Přidat Nového Pracovníka</h3>
+                <button class="modal-close" onclick="closeModal('workerModal')">&times;</button>
+            </div>
+            <form id="workerForm" onsubmit="saveWorker(event)">
+                <input type="hidden" id="workerId">
+                <div class="form-group">
+                    <label class="form-label">Jméno</label>
+                    <input type="text" id="workerName" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Hodinová Sazba (€)</label>
+                    <input type="number" id="workerRate" class="form-control" step="0.01" min="0" required>
+                </div>
+                <div class="flex gap-8">
+                    <button type="button" onclick="closeModal('workerModal')" class="btn btn-secondary w-full">Zrušit</button>
+                    <button type="submit" class="btn btn-primary w-full">Uložit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Add Task (Pin on Plan) -->
+    <div id="taskModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Zadat Hotový Stůl</h3>
+                <button class="modal-close" onclick="closeModal('taskModal')">&times;</button>
+            </div>
+            <form id="taskForm" onsubmit="saveTask(event)">
+                <input type="hidden" id="taskX">
+                <input type="hidden" id="taskY">
+                <input type="hidden" id="taskProjectId">
+                
+                <div class="form-group">
+                    <label class="form-label">Pracovník</label>
+                    <select id="taskWorker" class="form-control" required>
+                        <option value="">-- Vyberte pracovníka --</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Číslo Stolu/Stringu</label>
+                    <input type="text" id="taskTableNumber" class="form-control" required placeholder="např. T-14">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Typ Stolu</label>
+                    <div class="table-type-buttons">
+                        <button type="button" class="table-type-btn table-type-small" onclick="selectTableType('small', 30)">
+                            <div class="table-type-icon">🔵</div>
+                            <div class="table-type-name">Malý stůl</div>
+                            <div class="table-type-price">30 €</div>
+                        </button>
+                        <button type="button" class="table-type-btn table-type-medium" onclick="selectTableType('medium', 48)">
+                            <div class="table-type-icon">🟣</div>
+                            <div class="table-type-name">Střední stůl</div>
+                            <div class="table-type-price">48 €</div>
+                        </button>
+                        <button type="button" class="table-type-btn table-type-large" onclick="selectTableType('large', 60)">
+                            <div class="table-type-icon">🟢</div>
+                            <div class="table-type-name">Velký stůl</div>
+                            <div class="table-type-price">60 €</div>
+                        </button>
+                    </div>
+                </div>
+                
+                <input type="hidden" id="taskReward" required>
+                <input type="hidden" id="taskType">
+                
+                <div class="flex gap-8 mt-16">
+                    <button type="button" onclick="closeModal('taskModal')" class="btn btn-secondary w-full">Zrušit</button>
+                    <button type="submit" class="btn btn-primary w-full">Přidat Stůl</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Daily Report -->
+    <div id="reportModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Denní Report</h3>
+                <button class="modal-close" onclick="closeModal('reportModal')">&times;</button>
+            </div>
+            <div id="reportContent" style="background: rgba(255,255,255,0.05); padding: 16px; border-radius: 8px; font-family: monospace; font-size: 14px; white-space: pre-wrap; max-height: 400px; overflow-y: auto;"></div>
+            <button onclick="copyReport()" class="btn btn-primary w-full mt-16">Kopírovat Text</button>
+        </div>
+    </div>
+
+    <!-- Success Toast for Quick Actions -->
+    <div id="quickSuccessToast" class="quick-success-toast">
+        <span id="quickSuccessText">✓ Stůl přidán</span>
+    </div>
+
+    <!-- External Scripts -->
+    <script type="module" src="js/state.js"></script>
+    <script type="module" src="js/canvas.js"></script>
+    <script type="module" src="js/ui.js"></script>
+    <script type="module" src="js/utils.js"></script>
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
